@@ -1,5 +1,4 @@
 use once_cell::sync::Lazy;
-use secrecy::ExposeSecret;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::net::TcpListener;
 use uuid::Uuid;
@@ -25,10 +24,9 @@ static TRACING: Lazy<()> = Lazy::new(|| {
 });
 
 pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
-    let mut connection =
-        PgConnection::connect(config.connection_string_without_db().expose_secret())
-            .await
-            .expect("Failed to connect to Postgres.");
+    let mut connection = PgConnection::connect_with(&config.without_db())
+        .await
+        .expect("Failed to connect to Postgres.");
 
     connection
         .execute(format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str())
@@ -36,7 +34,7 @@ pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .expect("Failed to create test database.");
 
     // migrate database
-    let connection_pool = PgPool::connect(config.connection_string().expose_secret())
+    let connection_pool = PgPool::connect_with(config.with_db())
         .await
         .expect("Failed to connect to Postgres for migration.");
 
@@ -91,8 +89,8 @@ async fn subscribe_returns_200_with_valid_form_data() {
     let app = spawn_app().await;
 
     let configuration = get_configuration().expect("Failed to read configuration files.");
-    let connection_string = configuration.database.connection_string();
-    let mut connection = PgConnection::connect(connection_string.expose_secret())
+    // let connection_string = configuration.database.connection_string();
+    let mut connection = PgConnection::connect_with(&configuration.database.with_db())
         .await
         .expect("Failed to connect to Postgres.");
 
@@ -150,5 +148,34 @@ async fn subscribe_returns_400_with_missing_data() {
             "The API did not failed with 400 Bad Request: payload was {:?}",
             error_msg
         );
+    }
+}
+
+#[tokio::test]
+async fn subscribe_returns_400_when_fields_are_present_but_invalid() {
+    let app = spawn_app().await;
+    let client = reqwest::Client::new();
+    let combinations = vec![
+        ("name=&email=ursula_le_guin%40.yopmail.com", "empty name"),
+        ("name=Ursula&email=", "empty email"),
+        ("name=Ursula&email=not-an-email", "invalid email"),
+    ];
+
+    for (body, description) in combinations {
+        let response = client
+            .post(&format!("{}/subscriptions", &app.address))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(body)
+            .send()
+            .await
+            .expect("Failed to execute request.");
+
+        assert_eq!(
+            400,
+            response.status().as_u16(),
+            // additioinal error on test failure
+            "The API did not return 400 OK when the payload was {:?}",
+            description
+        )
     }
 }

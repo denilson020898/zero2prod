@@ -1,3 +1,7 @@
-
 application:
   host: 0.0.0.0
+database:
+  # require_ssl: true
+  # local test
+  require_ssl: false
+  host: "host.docker.internal"
