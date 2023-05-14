@@ -1,14 +1,11 @@
 use crate::authentication::AuthError;
 use crate::authentication::{validate_credentials, Credentials};
 use crate::routes::error_chain_fmt;
-use crate::startup::HmacSecret;
+use actix_web::cookie::Cookie;
 use actix_web::error::InternalError;
-use actix_web::http::header::{ContentType, LOCATION};
+use actix_web::http::header::LOCATION;
+use actix_web::web;
 use actix_web::HttpResponse;
-use actix_web::{web, ResponseError};
-use hmac::{Hmac, Mac};
-use reqwest::StatusCode;
-use secrecy::ExposeSecret;
 use secrecy::Secret;
 use sqlx::PgPool;
 
@@ -19,13 +16,12 @@ pub struct FormData {
 }
 
 #[tracing::instrument(
-    skip(form, pool, secret),
+    skip(form, pool),
     fields(username=tracing::field::Empty, user_id=tracing::field::Empty)
 )]
 pub async fn login(
     form: web::Form<FormData>,
     pool: web::Data<PgPool>,
-    secret: web::Data<HmacSecret>,
 ) -> Result<HttpResponse, InternalError<LoginError>> {
     let credentials = Credentials {
         username: form.0.username,
@@ -45,19 +41,9 @@ pub async fn login(
                 AuthError::InvalidCredentials(_) => LoginError::AuthError(e.into()),
                 AuthError::UnexpectedError(_) => LoginError::UnexpectedError(e.into()),
             };
-            let query_string = format!("error={}", urlencoding::Encoded::new(e.to_string()));
-            let hmac_tag = {
-                let mut mac =
-                    Hmac::<sha2::Sha256>::new_from_slice(secret.0.expose_secret().as_bytes())
-                        .unwrap();
-                mac.update(query_string.as_bytes());
-                mac.finalize().into_bytes()
-            };
             let response = HttpResponse::SeeOther()
-                .insert_header((
-                    LOCATION,
-                    format!("/logic?{}&tag={:x}", query_string, hmac_tag),
-                ))
+                .insert_header((LOCATION, format!("/login")))
+                .cookie(Cookie::new("_flash", e.to_string()))
                 .finish();
             Err(InternalError::from_response(e, response))
         }
@@ -68,7 +54,7 @@ pub async fn login(
 pub enum LoginError {
     #[error("Authentication failed")]
     AuthError(#[source] anyhow::Error),
-    #[error("Something went wrong")]
+    #[error("Something went wrong.")]
     UnexpectedError(#[from] anyhow::Error),
 }
 
