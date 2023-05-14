@@ -17,6 +17,7 @@ name = "zero2prod"
 
 [dependencies]
 actix-web = "4"
+actix-web-flash-messages = { version = "0.3", features = ["cookies"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serde = { version = "1", features = ["derive"]}
 config = "0.11"
@@ -43,6 +44,11 @@ htmlescape = "0.3"
 hmac = { version = "0.12", features = ["std"] }
 sha2 = "0.10"
 hex = "0.4"
+
+[dependencies.actix-session]
+git = "https://github.com/actix/actix-extras"
+branch = "master"
+features = ["redis-rs-tls-session"]
 
 [dev-dependencies]
 once_cell = "1"
