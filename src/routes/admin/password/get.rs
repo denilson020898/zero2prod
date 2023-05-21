@@ -3,6 +3,7 @@ use crate::utils::{e500, see_other};
 use actix_web::{http::header::ContentType, HttpResponse};
 use actix_web_flash_messages::{FlashMessage, IncomingFlashMessages};
 use std::fmt::Write;
+use secrecy::ExposeSecret;
 
 pub async fn change_password_form(
     session: TypedSession,
