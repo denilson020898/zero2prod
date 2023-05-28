@@ -1,14 +1,11 @@
 use crate::authentication::{validate_credentials, AuthError, Credentials};
 use crate::routes::admin::dashboard::get_username;
-use crate::session_state::TypedSession;
 use crate::utils::{e500, see_other};
-use actix_web::error::InternalError;
 use actix_web::{web, HttpResponse};
 use actix_web_flash_messages::FlashMessage;
 use secrecy::ExposeSecret;
 use secrecy::Secret;
 use sqlx::PgPool;
-use uuid::Uuid;
 use crate::authentication::UserId;
 
 #[derive(serde::Deserialize)]
@@ -59,3 +56,4 @@ pub async fn change_password(
     FlashMessage::error("Your password has been changed.").send();
     Ok(see_other("/admin/password"))
 }
+
